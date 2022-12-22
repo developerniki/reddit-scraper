@@ -23,9 +23,10 @@ if __name__ == '__main__':
     df_urls['url'] = df_urls['url'].apply(extract_url)
     df.loc[df['url'] == df['permalink'], 'url'] = df_urls['url']
 
-    # Write data into list of lists before sending it to the Google API.
+    # Parse data for Google API.
     df = df[header]
     df = df.fillna(value='—')
+    df = df[df['link_flair_text'] != 'Mod Announcement']
     data = [df.columns.tolist()] + df.values.tolist()
 
     google_client = gspread.service_account('google_credentials/google_service_account.json')
