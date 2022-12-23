@@ -48,6 +48,8 @@ if __name__ == '__main__':
     submissions_old = []
     most_recent_id = None
 
+    Path("data").mkdir(parents=True, exist_ok=True)
+
     if Path('data/posts.json').exists():
         with open('data/posts.json', 'r') as file:
             submissions_old = json.load(file)
