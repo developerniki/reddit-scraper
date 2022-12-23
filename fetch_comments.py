@@ -38,8 +38,6 @@ if __name__ == '__main__':
     with open('data/posts.json', 'r') as file:
         submissions = json.load(file)
 
-    submissions_new = []
-
     for submission in tqdm(submissions):
         # Only fetch comments for new submissions and do not update comments for old submissions.
         if submission.get('comments') is None:
@@ -49,7 +47,6 @@ if __name__ == '__main__':
             for top_level_comment in comments:
                 comment_parsed = parse_comment(top_level_comment)
                 submission['comments'].append(comment_parsed)
-        submissions_new.append(submission)
 
     with open('data/posts.json', 'w') as file:
-        json.dump(submissions_new, file, indent=4)
+        json.dump(submissions, file, indent=4)
