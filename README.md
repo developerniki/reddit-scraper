@@ -46,3 +46,7 @@ python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+## TODO
+- [ ] Add concatenated OP comments/replies that do not break the chain to top-level OP comment.
+- [ ] Figure out what to do about posts that were deleted in the meantime.
