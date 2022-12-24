@@ -14,7 +14,8 @@ DATIME_FMT = '%Y-%m-%d %H:%M:%S'
 def parse_comment(comment: reddit.Comment) -> Dict:
     """Parse a reddit comment object and write the relevant attributes into a dictionary."""
     comment_parsed = {
-        'author_name': comment.author and comment.author.name,  # TODO Figure out which author is `None`.
+        # The author is `None` if the Reddit account does not exist anymore.
+        'author_name': comment.author and comment.author.name,
         'body': comment.body,
         'created_utc': datetime.fromtimestamp(comment.created_utc).strftime(DATIME_FMT),
         'distinguished': comment.distinguished,
