@@ -48,5 +48,6 @@ pip install -r requirements.txt
 ```
 
 ## TODO
-- [ ] Add concatenated OP comments/replies that do not break the chain to top-level OP comment.
+- [x] Add concatenated OP comments/replies that do not break the chain to top-level OP comment.
+- [ ] If eligible, extract the summary from the post body.
 - [ ] Figure out what to do about posts that were deleted in the meantime.
