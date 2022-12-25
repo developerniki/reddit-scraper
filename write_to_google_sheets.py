@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
+import html
 import re
-from typing import List, Dict
+from collections import deque
 
 import gspread
 import pandas as pd
-import html
 
 SHEET_URL = 'https://docs.google.com/spreadsheets/d/1BaOq-cgq7IXPcVn0plo__giy_GGKGPsLOnz3zEgh4EM'
 
@@ -16,32 +16,18 @@ def extract_url(text: str) -> str:
     return url
 
 
-def extract_summary(comments: List[Dict]) -> str:
+def extract_summary(comments):
     """Use depth first search to concatenate uninterrupted submitter comment/reply chain."""
     summary = []
-
-    X = [0]
-    V = [comments]
-
-    while X:
-        if X[-1] >= len(V[-1]):
-            X.pop()
-            V.pop()
-            continue
-
-        comment = V[-1][X[-1]]
-        X[-1] += 1
-
+    queue = deque(comments)
+    while queue:
+        comment = queue.popleft()
         if comment['is_submitter']:
             summary.append(comment['body'])
             replies = comment['replies']
-            if replies:
-                X.append(0)
-                V.append(replies)
-
+            queue.extendleft(replies)
     summary = '\n\n∴\n\n'.join(summary)
     summary = html.unescape(summary)
-
     return summary
 
 
