@@ -4,8 +4,9 @@ from collections import deque
 from typing import Dict
 
 
-def extract_url(text: str) -> str:
-    """Extract the first URL from a string."""
+
+def extract_markdown_url(text: str) -> str:
+    """Extract the first URL from a Markdown string."""
     url = re.search(r'\[.+\]\((?P<url>https?://\S+)\)', text)
     url = None if url is None else url.group('url')
     return url
