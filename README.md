@@ -49,8 +49,8 @@ pip install -r requirements.txt
 
 ## TODO
 - [x] Add concatenated OP comments/replies that do not break the chain to top-level OP comment.
+- [x] Account for mod news and poll posts. Example: https://www.reddit.com/poll/yc92e0
 - [ ] Sync to Zotero.
 - [ ] Keep track of posts less than a week old and regularly update flairs / post deletions.
 - [ ] If eligible, extract the summary from the post body.
-- [ ] In `fetch_posts.py` account for post type poll. Example: https://www.reddit.com/poll/yc92e0
 - [ ] In `write_to_google_sheets.py` only update necessary rows.
