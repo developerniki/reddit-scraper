@@ -17,7 +17,7 @@ if __name__ == '__main__':
     # If the URL matches the permalink, then extract the actual url from the post body.
     df['permalink'] = 'https://www.reddit.com' + df['permalink']
     df_urls = df[['selftext']].rename(columns={'selftext': 'url'})
-    df_urls['url'] = df_urls['url'].apply(utils.extract_url)
+    df_urls['url'] = df_urls['url'].apply(utils.extract_markdown_url)
     df.loc[df['url'] == df['permalink'], 'url'] = df_urls['url']
 
     # Parse data for Google API.
