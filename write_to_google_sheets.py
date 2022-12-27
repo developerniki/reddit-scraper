@@ -23,7 +23,7 @@ if __name__ == '__main__':
     # Parse data for Google API.
     df = df[header]
     df = df.fillna(value='—')
-    df = df[~df['link_flair_text'].isin(('Mod Announcement', 'Mod News', 'Poll'))]
+    df = df[~df['link_flair_text'].isin(('Active Research', 'Mod Announcement', 'Mod News', 'Poll', 'Requests'))]
     data = [df.columns.tolist()] + df.values.tolist()
 
     # Connect to Google sheets API.
