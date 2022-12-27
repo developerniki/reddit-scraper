@@ -1,6 +1,7 @@
 import html
 import re
 from collections import deque
+from typing import Dict
 
 
 def extract_url(text: str) -> str:
@@ -10,7 +11,7 @@ def extract_url(text: str) -> str:
     return url
 
 
-def extract_article_summary(comments):
+def extract_article_summary(comments: Dict) -> str:
     """Use depth first search to concatenate uninterrupted submitter comment/reply chain."""
     summary = []
     queue = deque(comments)
