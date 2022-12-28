@@ -15,7 +15,7 @@ if __name__ == '__main__':
 
     # If the URL matches the permalink, then extract the actual URL from the post body.
     df_urls = pd.DataFrame(submissions)[['selftext']].rename(columns={'selftext': 'url'})
-    df_urls['url'] = df_urls['url'].apply(utils.extract_url)
+    df_urls['url'] = df_urls['url'].apply(utils.extract_markdown_url)
     df['url'][df['url'] == df['permalink']] = df_urls['url']
 
     with open('data/posts_table.md', 'w') as file:
