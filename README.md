@@ -1,57 +1,95 @@
 # reddit-scraper
-Various scripts to scrape research articles from Reddit and upload them to Google sheets.
 
-You will need a working `praw.ini` file containing the credentials for a bot account and a file `google_credentials/google_service_account.json` containing the credentials for a Google service account.
+This repository contains scripts for scraping research articles from Reddit and uploading them to Google Sheets and
+Zotero, although the scripts `fetch_submissions.py`, `fetch_comments.py`, `update_recent_submissions_and_comments.py`,
+and `update_all_missing_flairs.py` can be used to fetch any Reddit content.
 
-This is an example `praw.ini` file:
-```
-[DEFAULT]
-# A boolean to indicate whether or not to check for package updates.
-check_for_updates=True
+## Installation
 
-# Object to kind mappings
-comment_kind=t1
-message_kind=t4
-redditor_kind=t2
-submission_kind=t3
-subreddit_kind=t5
-trophy_kind=t6
+In order to use these scripts, you will need:
 
-# The URL prefix for OAuth-related requests.
-oauth_url=https://oauth.reddit.com
+- A Reddit account and a Reddit app. You will need to provide your Reddit credentials (client ID, client secret,
+  password, username, and user agent) in a file called `credentials/praw_credentials.json`.
+- A Google account and a Google Sheet. You will also need to create a Google service account and provide its credentials
+  in a file called `credentials/google_service_account.json`.
+- A Zotero account and library. If you want to upload the articles to Zotero, you will need to provide your Zotero
+  library ID, library type (either 'user' or 'group'), and API key in a file
+  called `credentials/zotero_credentials.json`. The [Pyzotero quickstart guide](https://github.com/urschrei/pyzotero)
+  explains this process in more detail.
 
-# The amount of seconds of ratelimit to sleep for upon encountering a specific type of 429 error.
-ratelimit_seconds=5
+The `zotero_credentials.json` has the following structure:
 
-# The URL prefix for regular requests.
-reddit_url=https://www.reddit.com
+```json
+{
+  "library_id": "<library ID>",
+  "library_type": "<library group>",
+  "api_key": "<API key>"
+}
+  ```
 
-# The URL prefix for short URLs.
-short_url=https://redd.it
+Before running the scripts, make sure to create a virtual environment and install the required packages from
+`requirements.txt`:
 
-# The timeout for requests to Reddit in number of seconds
-timeout=16
-
-[bot1]
-client_id= # Known when you make a Reddit bot account.
-client_secret= # Known when you make a Reddit bot account.
-password= # The password of the Reddit account the bot account belongs to.
-username= # # The username of the Reddit account the bot account belongs to (the <username> in r/<username>).
-user_agent= # Should contain your bot name, version, and username.
-```
-
-The `start.sh` script assumes that a virtual environment `.venv` that has installed all requirements from the `requirements.txt` exists:
 ```commandline
 python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## TODO
-- [x] Add concatenated OP comments/replies that do not break the chain to top-level OP comment.
-- [x] Account for mod news and poll posts. Example: https://www.reddit.com/poll/yc92e0
-- [x] Account for 'Active Research' and 'Request' posts.
-- [ ] Sync to Zotero.
-- [ ] Keep track of posts less than a week old and regularly update flairs / post deletions.
-- [ ] If eligible, extract the summary from the post body.
-- [ ] In `write_to_google_sheets.py` only update necessary rows.
+## Usage
+
+The scraping process is divided into multiple steps:
+
+1. `fetch_submissions.py`: Fetch the articles from Reddit using the Reddit API and store them into a JSON
+   file `data/<subreddit>.json`.
+2. `fetch_comments.py`: Scrape the comments from the articles and store them in the same JSON file.
+3. `process_raw.py`: Process the raw data and store it in the same JSON file.
+    - If the URL matches the permalink of the submission, then the URL is extracted from the submission's selftext.
+      Submissions like this are marked as `_is_url_from_selftext = True`, otherwise `_is_url_from_selftext = False`.
+    - A summary of the article is extracted by either taking the submission text if `_is_url_from_selftext = True`,
+      otherwise by concatenating OP comments/replies that are not interrupted by a comment/reply from another user.
+    - The paper type is extracted by looking for keywords of the form `[keyword]` in the submission title.
+    - The field `_is_research` is set to `False` if the submission flair is one of 'Active Research', 'Mod
+      Announcement', 'Mod News', 'Poll', or 'Requests'. Otherwise, it is set to `True`.
+    - Generally, all added fields start with an underscore to clearly distinguish them from the original fields.
+4. `fetch_metadata.py`: Fetch the metadata for the articles using the Crossref API and store it in the same JSON file.
+   For this, it is first attempted to get the DOI of the submission URL from its URL, and if that does not work from the
+   HMTL of the URL. If the DOI is found, then the title is used to search for the metadata. In both cases, if there are
+   multiple results, then the most similar result is chosen. Results that are not at least 80% similar are discarded.
+5. `sync_with_google_sheets.py` and `sync_with_zotero.py`: Upload the processed data to Google Sheets and/or Zotero.
+
+Additionally, there are two scripts for keeping the data up-to-date and downloading as Google Sheet as an Excel file:
+
+- `update_all_missing_flairs.py`: Update the flair of all submissions that are missing a flair.
+- `update_recent_submissions_and_comments.py`: Update the comments and flairs of all submissions that have been posted
+  in the last 7 days or delete the submission if it has been removed in the meantime.
+- `download_google_sheet_as_xlsx.py`: Download a Google Sheet as an XLSX (Excel) file.
+
+Both scripts set `_synced_with_google_sheets` and `_synced_with_zotero` to `False` so that the data is re-uploaded to
+Google Sheets and Zotero if it has been updated. This is useful if you want to run the scripts on a regular basis, e.g.
+using a cron job.
+
+Each script under the `scripts` folder accepts the subreddit name as a command-line argument. For example, to scrape the
+posts of the `r/Psychology` subreddit, run `python fetch_submissions.py Psychology`.
+
+An example of how to use the various scripts can be found in `start.py`. This script will use the Reddit API to scrape
+articles from Reddit, process the raw data, fetch metadata using the Crossref API, and upload the processed data to
+Google Sheets and Zotero. Additionally, at the beginning of the script, it will copy the data to
+the `data/backup/<current timestamp>` directory.
+
+## Note on deleted submissions
+
+If a submission is deleted, then the script `fetch_submissions.py` will not be able to scrape the submission. However,
+if the submission was scraped before it was deleted, the field `removed_by_category` will be set to `deleted`. If the
+submission was not scraped before it was deleted, then the field `removed_by_category` will be set to `null` when the
+submission is being updated using the `update_recent_submissions_and_comments.py` script. This is to ensure no data is
+lost if a submission is deleted but to still mark the submission as deleted, so it can be ignored in further processing.
+
+## Future work
+
+- [ ] Finish the `sync_with_zotero.py` script.
+- [ ] Implement a way to fetch the metadata from PDFs.
+- [ ] Handle PubMed and NCBI URLs by extracting the PMCID from the URL.
+- [ ] Store the metadata separately from the raw data in a file called `metadata/<filename>.json` and move the original
+  data to a file called `raw/<filename>.json`.
+- [ ] Handle the papers for which we failed to obtain metadata.
