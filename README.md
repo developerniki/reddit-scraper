@@ -80,10 +80,11 @@ the `data/backup/<current timestamp>` directory.
 ## Note on deleted submissions
 
 If a submission is deleted, then the script `fetch_submissions.py` will not be able to scrape the submission. However,
-if the submission was scraped before it was deleted, the field `removed_by_category` will be set to `deleted`. If the
-submission was not scraped before it was deleted, then the field `removed_by_category` will be set to `null` when the
-submission is being updated using the `update_recent_submissions_and_comments.py` script. This is to ensure no data is
-lost if a submission is deleted but to still mark the submission as deleted, so it can be ignored in further processing.
+if the submission was scraped before it was deleted, the field `removed_by_category` will be set to a value that is
+not `null`. If the submission was not scraped before it was deleted, then the field `removed_by_category` will be set
+to `null` when the submission is being updated using the `update_recent_submissions_and_comments.py` script. This is to
+ensure no data is lost if a submission is deleted but to still mark the submission as deleted, so it can be ignored in
+further processing.
 
 ## Future work
 
