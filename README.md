@@ -58,7 +58,7 @@ The scraping process is divided into multiple steps:
    multiple results, then the most similar result is chosen. Results that are not at least 80% similar are discarded.
 5. `sync_with_google_sheets.py` and `sync_with_zotero.py`: Upload the processed data to Google Sheets and/or Zotero.
 
-Additionally, there are two scripts for keeping the data up-to-date and downloading as Google Sheet as an Excel file:
+Additionally, there are three scripts for keeping the data up-to-date and downloading as Google Sheet as an Excel file:
 
 - `update_all_missing_flairs.py`: Update the flair of all submissions that are missing a flair.
 - `update_recent_submissions_and_comments.py`: Update the comments and flairs of all submissions that have been posted
