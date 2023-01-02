@@ -175,9 +175,9 @@ if __name__ == '__main__':
                     df.at[row, '_zotero_sync_error'] = val
             except zotero_errors.UserNotAuthorised:
                 _logger.error(
-                    f'User not authorized to upload to the Zotero library with ID {ZOT_CRED["library_id"]}. Please check '
-                    f'your credentials in the file "credentials/zotero_credentials.json" and the permissions of your API '
-                    f'key at "https://www.zotero.org/settings/keys".'
+                    f'User not authorized to upload to the Zotero library with ID {ZOT_CRED["library_id"]}. Please '
+                    f'check your credentials in the file "credentials/zotero_credentials.json" and the permissions of '
+                    f'your API key at "https://www.zotero.org/settings/keys".'
                 )
                 sys.exit(1)
             except zotero_errors.HTTPError:

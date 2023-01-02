@@ -74,7 +74,8 @@ if __name__ == '__main__':
     # Parse the data for the Google Sheets API.
     data = parse_data_for_google_sheets(df)
 
-    # Connect to the Google Sheets API. If permission is denied, make sure that the Google service account has access to the
+    # Connect to the Google Sheets API. If permission is denied, make sure that the Google service account has access
+    # to the Google Sheet.
     try:
         google_client = gspread.service_account(filename=str(GOOGLE_CREDENTIALS_FILE.resolve()))
     except gspread.exceptions.APIError as e:
