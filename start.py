@@ -44,6 +44,5 @@ if __name__ == '__main__':
         subprocess.run([PYTHON, 'scripts/process_raw.py', subreddit])
         subprocess.run([PYTHON, 'scripts/fetch_metadata.py', subreddit])
         subprocess.run([PYTHON, 'scripts/sync_with_google_sheets.py', subreddit, GOOGLE_SHEETS_URL, google_sheets_num])
-        # TODO Uncomment the following line when the `sync_with_zotero.py` script is ready.
-        # subprocess.run([PYTHON, 'scripts/sync_with_zotero.py', subreddit])
+        subprocess.run([PYTHON, 'scripts/sync_with_zotero.py', subreddit])
     _logger.info('Finished executing full scraping pipeline.')

@@ -88,7 +88,9 @@ further processing.
 
 ## Future work
 
-- [ ] Finish the `sync_with_zotero.py` script.
+- [x] Finish the `sync_with_zotero.py` script.
+- [ ] Add Zotero items to the correct subcollections.
+- [ ] Note to self: Handle items without a first name / last name.
 - [ ] Implement a way to fetch the metadata from PDFs.
 - [ ] Handle PubMed and NCBI URLs by extracting the PMCID from the URL.
 - [ ] Store the metadata separately from the raw data in a file called `metadata/<filename>.json` and move the original

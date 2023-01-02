@@ -9,3 +9,4 @@ habanero==1.2.2
 beautifulsoup4==4.11.1
 pyppeteer==1.0.2
 pyppeteer-stealth==2.7.4
+toml==0.10.2
