@@ -21,9 +21,8 @@ def parse_args() -> Tuple[str, Path]:
         '-f',
         '--filename',
         type=str,
-        help="The name of the JSON file that stores the data without the file suffix. Defaults to the "
-             "lowercase name of the subreddit. For example, if the subreddit is 'r/Python', the default "
-             "filename is 'python'.",
+        help="The name of the JSON file that stores the data without the file suffix. Defaults to the lowercase name "
+             "of the subreddit. For example, if the subreddit is 'r/Python', the default filename is 'python'.",
     )
     args = parser.parse_args()
     filename = f'{args.filename or args.subreddit.lower()}.json'
