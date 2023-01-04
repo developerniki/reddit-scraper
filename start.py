@@ -22,15 +22,17 @@ _logger = logging.getLogger(Path(__file__).name)
 
 
 def backup_data() -> None:
-    """Backup the `data` folder to a timestamped folder in the `data/backups` folder."""
-    if DATA_PATH.exists():
+    """Backup the files of the `data` folder to a timestamped folder in the `data/backups` folder."""
+    if not DATA_PATH.exists():
+        _logger.info(f'No data to backup... {DATA_PATH} does not exist...')
+    elif len(list(filter(lambda x: x.is_file(), DATA_PATH.iterdir()))) == 0:
+        _logger.info(f'No data to backup... {DATA_PATH} is empty...')
+    else:
         timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         _logger.info(f'Backing up data to {BACKUP_PATH / timestamp}...')
         (BACKUP_PATH / timestamp).mkdir(parents=True, exist_ok=True)
         for file in filter(lambda p: p.is_file(), DATA_PATH.iterdir()):
             shutil.copyfile(file, BACKUP_PATH / timestamp / file.name)
-    else:
-        _logger.info(f'No data to backup... {DATA_PATH} does not exist...')
 
 
 if __name__ == '__main__':
