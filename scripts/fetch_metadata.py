@@ -35,7 +35,8 @@ def parse_args() -> Tuple[str, Path]:
 
 def fetch_metadata(df: pd.DataFrame) -> None:
     """Fetch metadata for each row in the dataframe into a new `metadata` column of the dataframe and mark any rows that
-    failed to fetch by setting the `metadata` column to `None`. Only fetch metadata for rows that don't already have it.
+    failed to fetch by setting the `metadata` column to `None`. Only fetch metadata for rows if they are research, if
+    they haven't been fetched before, and if they haven't failed to fetch before.
 
     Parameters:
         df: The dataframe to process.
@@ -43,10 +44,14 @@ def fetch_metadata(df: pd.DataFrame) -> None:
 
     if '_metadata' not in df.columns:
         df['_metadata'] = np.nan
-    rows_without_metadata = df[(df['_is_research']) & (df['_metadata'].isna())]
+
+    if '_metadata_failed' not in df.columns:
+        df['_metadata_failed'] = False
+
+    rows_to_fetch_metadata_for = df[(df['_is_research']) & (df['_metadata'].isna()) & (~df['_metadata_failed'])]
 
     # Iterate through the rows that need to fetch metadata
-    for index, row in tqdm(rows_without_metadata.iterrows(), total=len(rows_without_metadata)):
+    for index, row in tqdm(rows_to_fetch_metadata_for.iterrows(), total=len(rows_to_fetch_metadata_for)):
         article_metadata = metadata_utils.fetch_article_metadata(row['title'], row['url'])
 
         if article_metadata is None:
@@ -56,6 +61,8 @@ def fetch_metadata(df: pd.DataFrame) -> None:
                 # If there are multiple items, then take the closest match to the title.
                 article_metadata = metadata_utils.closest_match(row['title'], article_metadata['items'])
             df.at[index, '_metadata'] = article_metadata
+            if article_metadata is None:
+                df.at[index, '_metadata_failed'] = True
 
 
 if __name__ == '__main__':

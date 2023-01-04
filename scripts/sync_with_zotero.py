@@ -65,7 +65,9 @@ def parse_data_for_zotero(df: pd.DataFrame) -> List[Dict[str, Any]]:
     # Convert the metadata to a Zotero-friendly format.
     items = []
     for index, row in df.iterrows():
-        if row['_synced_with_zotero'] or ('zotero_sync_error' in row and row['zotero_sync_error'].notna()):
+        already_synced = row['_synced_with_zotero'] or row['_manually_synced_with_zotero']
+        errored_last_time = ('zotero_sync_error' in row and row['zotero_sync_error'].notna())
+        if already_synced or errored_last_time:
             continue
 
         title = row['_metadata'].get('title')
@@ -140,6 +142,11 @@ if __name__ == '__main__':
     # Add the `_zotero_sync_error` column if it does not exist yet.
     if '_zotero_sync_error' not in df.columns:
         df['_zotero_sync_error'] = None
+
+    # Add the `_manually_synced_with_zotero` column if it does not exist yet and update `null` values to `False`.
+    if '_manually_synced_with_zotero' not in df.columns:
+        df['_manually_synced_with_zotero'] = False
+    df['_manually_synced_with_zotero'] = df['_manually_synced_with_zotero'].fillna(False)
 
     # Parse the data for Zotero.
     items = parse_data_for_zotero(df)
