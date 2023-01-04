@@ -89,10 +89,10 @@ further processing.
 ## Future work
 
 - [x] Finish the `sync_with_zotero.py` script.
+- [ ] Handle papers for which we failed to obtain metadata or which failed to sync to Zotero because of missing fields.
+  - [ ] Handle PubMed and NCBI URLs by extracting the PMID or PMCID from the URL.
+  - [ ] Implement a way to fetch the metadata from PDFs.
 - [ ] Add Zotero items to the correct subcollections.
-- [ ] Note to self: Handle items without a first name / last name.
-- [ ] Implement a way to fetch the metadata from PDFs.
-- [ ] Handle PubMed and NCBI URLs by extracting the PMCID from the URL.
 - [ ] Store the metadata separately from the raw data in a file called `metadata/<filename>.json` and move the original
   data to a file called `raw/<filename>.json`.
-- [ ] Handle the papers for which we failed to obtain metadata.
+
