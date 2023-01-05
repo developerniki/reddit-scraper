@@ -88,10 +88,10 @@ further processing.
 
 ## Future work
 
-- [x] Finish the `sync_with_zotero.py` script.
-- [x] Add two scripts for manually adding Zotero submissions that failed to be added automatically.
-- [ ] Do not add the same submission twice to Zotero.
 - [ ] Add Zotero items to the correct sub-collection.
+- [ ] Allow adding to multiple Zotero libraries.
+
+- [ ] Update extra field of manually added items in Zotero.
 - [ ] Handle papers for which we failed to obtain metadata or which failed to sync to Zotero because of missing fields.
     - [ ] Handle PubMed and NCBI URLs by extracting the PMID or PMCID from the URL.
     - [ ] Implement a way to fetch the metadata from PDFs.
