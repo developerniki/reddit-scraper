@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Tuple, List, Dict, Any
 
 import pandas as pd
-import toml
 from pyzotero import zotero, zotero_errors
 from tqdm import tqdm
 
@@ -38,7 +37,7 @@ def parse_args() -> Tuple[str, Path]:
     return args.subreddit, file_path
 
 
-def parse_data_for_zotero(df: pd.DataFrame) -> List[Dict[str, Any]]:
+def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame) -> List[Dict[str, Any]]:
     """Parse the data for Zotero.
 
     Skip the following submissions:
@@ -48,6 +47,7 @@ def parse_data_for_zotero(df: pd.DataFrame) -> List[Dict[str, Any]]:
     - Submissions that raised an error last time (i.e., where `_zotero_sync_error` is not `None`).
 
     Parameters:
+        zot: The Zotero instance.
         df: The data to parse.
 
     Returns:
@@ -66,25 +66,9 @@ def parse_data_for_zotero(df: pd.DataFrame) -> List[Dict[str, Any]]:
     items = []
     for index, row in df.iterrows():
         already_synced = row['_synced_with_zotero'] or row['_manually_synced_with_zotero']
-        errored_last_time = ('zotero_sync_error' in row and row['zotero_sync_error'].notna())
+        errored_last_time = row['_zotero_sync_error'] is not None
         if already_synced or errored_last_time:
             continue
-
-        title = row['_metadata'].get('title')
-        title = title[0] if title and len(title) > 0 else row['title']
-        creators = row['_metadata'].get('author') or []
-        creators = [
-            {
-                'creatorType': 'author',
-                'firstName': creator.get('given'),
-                'lastName': creator.get('family'),
-            }
-            for creator in creators
-        ]
-        date = row['_metadata']['issued']['date-parts'][0][0] if 'issued' in row['_metadata'] else None
-        url = row['url']
-        doi = row['_metadata'].get('DOI')
-        abstract = row['_metadata'].get('abstract')
 
         # Handle preprints, theses, journal articles, book sections, and conference papers.
         paper_type_to_item_type = defaultdict(lambda: 'journalArticle')
@@ -93,28 +77,70 @@ def parse_data_for_zotero(df: pd.DataFrame) -> List[Dict[str, Any]]:
             'book-section': 'bookSection',
             'conference-paper': 'conferencePaper'
         })
-        reddit_paper_type = row['_metadata'].get('type')
-        paper_type = row['_metadata']['type'] or reddit_paper_type
+        reddit_title_paper_type = row['_metadata']['_title_paper_type']
+        paper_type = row['_metadata'].get('type') or reddit_title_paper_type
         item_type = paper_type_to_item_type[paper_type]
-        extra = {
+
+        title = row['_metadata'].get('title')
+        title = title[0] if title and len(title) > 0 else row['title']
+        creators = row['_metadata'].get('author') or []
+        creators = [{'creatorType': 'author', 'firstName': creator.get('given'), 'lastName': creator.get('family')}
+                    for creator in creators]
+        publication_title = row['_metadata'].get('container-title')
+        publication_title = ', '.join(publication_title) if publication_title else None
+        volume = row['_metadata'].get('volume')
+        issue = row['_metadata'].get('issue')
+        pages = row['_metadata'].get('page')
+        date = row['_metadata'].get('issued')
+        date = date['date-parts'][0] if date and 'date-parts' in date else None
+        date = '-'.join(map(str, date)) if date else None
+        journal_abbreviation = row['_metadata'].get('short-container-title')
+        journal_abbreviation = ', '.join(journal_abbreviation) if journal_abbreviation else None
+        language = row['_metadata'].get('language')
+        doi = row['_metadata'].get('DOI')
+        issn = row['_metadata'].get('ISSN')
+        issn = ', '.join(issn) if issn else None
+        short_title = row['_metadata'].get('short-title')
+        short_title = ', '.join(short_title) if short_title else None
+        url = row['url'] or row['_metadata'].get('URL')
+        access_date = row['created_utc']
+        extra = json.dumps({
             'reddit_link': row['permalink'],
             'summary': row['_summary'],
             'paper_type': paper_type,
-            'reddit_paper_type': reddit_paper_type,
-        }
-        # leave a blank line between every entry
-        extra = toml.dumps(extra)
+            'reddit_title': row['title'],
+            'reddit_title_paper_type': reddit_title_paper_type,
+            'reddit_author': row['author_name'],
+            'reddit_flair': row['link_flair_text'],
+            'reddit_upvotes': row['score'],
+            'reddit_summary': row['_summary'],
+        }, indent=2)
+        tags = [{'tag': tag} for tag in row['_metadata'].get('subject') or []]
+        abstract = row['_metadata'].get('abstract')
 
         item = {
             'itemType': item_type,
             'title': title,
             'creators': creators,
+            'publicationTitle': publication_title,
+            'volume': volume,
+            'issue': issue,
+            'pages': pages,
             'date': date,
-            'url': url,
+            'journalAbbreviation': journal_abbreviation,
+            'language': language,
             'DOI': doi,
-            'abstractNote': abstract,
+            'ISSN': issn,
+            'shortTitle': short_title,
+            'url': url,
+            'accessDate': access_date,
             'extra': extra,
+            'tags': tags,
+            'abstractNote': abstract,
         }
+
+        valid_keys = zot.item_template(item_type).keys()
+        item = {key: value for key, value in item.items() if key in valid_keys}
 
         if item_type == 'thesis':
             item['university'] = row['_metadata'].get('publisher')
@@ -129,11 +155,8 @@ def parse_data_for_zotero(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return items
 
 
-if __name__ == '__main__':
-    _logger.info('Uploading to Zotero...')
-    subreddit, subreddit_path = parse_args()
-    df = pd.read_json(subreddit_path)
-
+def add_sync_cols(df: pd.DataFrame):
+    """Add the columns that are used to keep track of the sync status to the dataframe."""
     # Add the `_synced_with_zotero` column if it does not exist yet and update `null` values to `False`.
     if '_synced_with_zotero' not in df.columns:
         df['_synced_with_zotero'] = False
@@ -148,38 +171,75 @@ if __name__ == '__main__':
         df['_manually_synced_with_zotero'] = False
     df['_manually_synced_with_zotero'] = df['_manually_synced_with_zotero'].fillna(False)
 
-    # Parse the data for Zotero.
-    items = parse_data_for_zotero(df)
+
+if __name__ == '__main__':
+    _logger.info('Uploading to Zotero...')
+    subreddit, subreddit_path = parse_args()
+    df = pd.read_json(subreddit_path)
+
+    # Add the columns that are used to keep track of the sync status to the dataframe.
+    add_sync_cols(df)
 
     # Initialize the Zotero library.
     zot = zotero.Zotero(**ZOT_CRED)
 
+    # Parse the data for Zotero.
+    items = parse_data_for_zotero(zot, df)
+
+    # Get current items in the library.
+    existing_items = defaultdict(list)
+    for i, item in enumerate(zot.everything(zot.items())):
+        try:
+            existing_items[json.loads(item['data']['extra'])['reddit_link']].append(item)
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    # Check if the item already exists in the library; if yes, take its `key` and `version`.
+    for i, item in enumerate(items):
+        # Compare Reddit permalinks in the `extra` field by parsing the JSON.
+        matches = existing_items.get(json.loads(item['extra'])['reddit_link'])
+        if matches:
+            m = matches[0]
+            if m := m.get('data'):
+                item['key'] = m['key']
+                item['version'] = m['version'] + 1
+
     # Upload items to Zotero, 50 at a time.
     _logger.info(f'Uploading {len(items)} items to Zotero in batches of 50...')
     batch = 50
+    total_created, total_updated, total_failed = 0, 0, 0
     with tqdm(total=len(items)) as pbar:
         for i in range(0, len(items), batch):
             j = min(i + batch, len(items))
 
             try:
-                cur_items = zot.check_items(items[i:j])
+                item_batch = zot.check_items(items[i:j])
             except zotero_errors.InvalidItemFields:
                 _logger.exception('Invalid item fields.')
                 sys.exit(1)
 
             try:
-                resp = zot.create_items(cur_items)
+                resp = zot.create_items(item_batch)
 
-                for key, _val in resp['success'].items():
-                    # Set the `_synced_with_zotero` column to `True` for the uploaded items.
-                    row = int(key) + i
-                    df.loc[row, '_synced_with_zotero'] = True
+                for k, v in resp['success'].items():
+                    permalink = json.loads(item_batch[int(k)]['extra'])['reddit_link']
+                    df.loc[df['permalink'] == permalink, '_synced_with_zotero'] = True
+                    df.loc[df['permalink'] == permalink, '_zotero_sync_error'] = None
 
-                for key, val in resp['failed'].items():
-                    _logger.error(f'Failed to upload item {key} with response {val}.')
+                for k, v in resp['unchanged'].items():
+                    permalink = json.loads(item_batch[int(k)]['extra'])['reddit_link']
+                    df.loc[df['permalink'] == permalink, '_synced_with_zotero'] = True
+                    df.loc[df['permalink'] == permalink, '_zotero_sync_error'] = None
+
+                for k, v in resp['failed'].items():
                     # Set the `zotero_sync_error` column to the error message of the failed items.
-                    row = int(key) + i
-                    df.at[row, '_zotero_sync_error'] = val
+                    permalink = json.loads(item_batch[int(k)]['extra'])['reddit_link']
+                    _logger.error(f'Failed to upload item with permalink {permalink} to Zotero: {v}')
+                    df.loc[df['permalink'] == permalink, '_zotero_sync_error'] = v
+
+                total_created += len(resp['success'])
+                total_updated += len(resp['unchanged'])
+                total_failed += len(resp['failed'])
             except zotero_errors.UserNotAuthorised:
                 _logger.error(
                     f'User not authorized to upload to the Zotero library with ID {ZOT_CRED["library_id"]}. Please '
@@ -195,4 +255,6 @@ if __name__ == '__main__':
 
     # Save the updated dataframe to indicate that the items have been synced to Zotero.
     df.to_json(subreddit_path, orient='records', indent=4)
-    _logger.info('Done syncing with Zotero.')
+    _logger.info(
+        f'Done syncing with Zotero. Summary: {total_created} created, {total_updated} updated, {total_failed} failed.'
+    )
