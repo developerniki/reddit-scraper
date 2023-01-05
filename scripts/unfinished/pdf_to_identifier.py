@@ -4,6 +4,8 @@
 It was created as a test file and is intended to be integrated into `utils/metadata_utils.py` once it works.
 """
 
+# TODO When this works, integrate it into `utils/metadata_utils.py`.
+
 import asyncio
 import logging
 from pathlib import Path
@@ -18,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(Path(__file__).name)
 
 
-# TODO It appears this may monly be possible with the JavaScript version of pyppeteer.
+# TODO It appears this may only be possible with the JavaScript version of pyppeteer.
 def get_pdf_from_url(url: str) -> Optional[Tuple[bytes, str]]:
     """Download a PDF from a URL and return the PDF as a byte string and the filename."""
 
@@ -68,16 +70,24 @@ def pdf_to_identifier(pdf: bytes, filename: str) -> Tuple[Optional[str], Optiona
         return out['identifier'], out['identifier_type']
 
 
-if __name__ == '__main__':
-    # filename = 'New Phytologist - 2019 - Borghi - Flowers and climate change a metabolic perspective.pdf'
-    # file = Path(f'~/Desktop/{filename}').expanduser()
-    # out = pdf2doi.pdf2doi_singlefile(file)
-    # print(out)
+def get_identifier_from_file_test(file_path: Path) -> Tuple[Optional[str], Optional[str]]:
+    identifier, identifier_type = pdf_to_identifier(file_path.read_bytes(), file_path.name)
+    print(identifier, identifier_type)
 
-    url = 'https://nph.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/nph.16031'
+
+def get_identifier_from_URL_test(url: str) -> Tuple[Optional[str], Optional[str]]:
     if res := get_pdf_from_url(url):
         pdf, filename = res
         identifier, identifier_type = pdf_to_identifier(pdf, filename)
         print(identifier, identifier_type)
     else:
         print('Could not retrieve PDF.')
+
+
+if __name__ == '__main__':
+    filename = 'New Phytologist - 2019 - Borghi - Flowers and climate change a metabolic perspective.pdf'
+    file = Path(f'~/Desktop/{filename}').expanduser()
+    get_identifier_from_file_test(file)
+
+    # url = 'https://nph.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/nph.16031'
+    # get_identifier_from_URL_test(url)
