@@ -162,6 +162,10 @@ def get_doi_from_html(html: str) -> Optional[str]:
         ResearchGate:
             - URL: https://www.researchgate.net/publication/269173761_Health_Problems_of_Partner_Violence_Victims_Comparing_Help-Seeking_Men_to_a_Population-Based_Sample
             - HTML: <meta property="citation_doi" content="10.1016/j.amepre.2014.08.022">
+
+        PubMed:
+            - URL: https://pubmed.ncbi.nlm.nih.gov/9871787/
+            - HTML: <meta name="citation_doi" content="10.1016/s0145-2134(98)00101-x">
     """
     if html is not None:
         soup = BeautifulSoup(html, 'html.parser')
