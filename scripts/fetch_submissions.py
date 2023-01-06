@@ -38,6 +38,6 @@ if __name__ == '__main__':
     # Fetch new submissions and store them in a JSON file.
     old_submissions = json.loads(file_path.read_text()) if file_path.exists() else []
     most_recent_submission_id = old_submissions[0]['id'] if len(old_submissions) > 0 else None
-    new_submissions = reddit_utils.fetch_submissions(reddit, subreddit, most_recent_submission_id)
+    new_submissions = reddit_utils.fetch_subreddit_submissions(reddit, subreddit, most_recent_submission_id)
     file_path.write_text(json.dumps(new_submissions + old_submissions, indent=4))
     _logger.info('Done fetching and storing new submissions.')
