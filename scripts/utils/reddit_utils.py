@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Iterator
 
 from praw import Reddit
 from praw.models import Submission, Comment
@@ -35,7 +35,7 @@ def parse_submission(submission: Submission, datetime_fmt='%Y-%m-%d %H:%M:%S') -
         A dictionary containing the parsed submission.
     """
     submission_parsed = {
-        'author_name': submission.author.name,
+        'author_name': submission.author and submission.author.name,
         'author_flair_text': submission.author_flair_text,
         'comments': None,
         'created_utc': datetime.fromtimestamp(submission.created_utc).strftime(datetime_fmt),
@@ -62,7 +62,20 @@ def parse_submission(submission: Submission, datetime_fmt='%Y-%m-%d %H:%M:%S') -
     return submission_parsed
 
 
-def fetch_submissions(reddit: Reddit, subreddit: str, until_id: Optional[str] = None) -> List[Dict]:
+def _fetch_submissions(submissions_iter: Iterator[Submission], until_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    submissions = []
+    for submission in tqdm(submissions_iter):
+        # Only fetch submissions we didn't already fetch.
+        if until_id is not None and submission.id == until_id:
+            break
+        submission_parsed = parse_submission(submission)
+        submissions.append(submission_parsed)
+    return submissions
+
+    # TODO Fetch the rest using praw.
+
+
+def fetch_subreddit_submissions(reddit: Reddit, subreddit: str, until_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetch submissions from the subreddit. If `until_id` is provided, only submissions newer than the one with the
     given ID will be fetched.
 
@@ -74,15 +87,22 @@ def fetch_submissions(reddit: Reddit, subreddit: str, until_id: Optional[str] = 
     Returns:
         A list of dictionaries containing the parsed submissions.
     """
-    submissions = []
-    submission_iter = reddit.subreddit(subreddit).new(limit=None)
-    for submission in tqdm(submission_iter):
-        # Only fetch submissions we didn't already fetch.
-        if until_id is not None and submission.id == until_id:
-            break
-        submission_parsed = parse_submission(submission)
-        submissions.append(submission_parsed)
-    return submissions
+    return _fetch_submissions(reddit.subreddit(subreddit).new(limit=None), until_id)
+
+
+def fetch_user_submissions(reddit: Reddit, username: str, until_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Fetch submissions from the given user. If `until_id` is provided, only submissions newer than the one with the
+    given ID will be fetched.
+
+    Parameters:
+        reddit: A praw.Reddit instance.
+        username: The name of the user to fetch submissions from.
+        until_id: The ID of the most recent stored submission.
+
+    Returns:
+        A list of dictionaries containing the parsed submissions.
+    """
+    return _fetch_submissions(reddit.redditor(username).submissions.new(limit=None), until_id)
 
 
 def parse_comment(comment: Comment, datetime_fmt='%Y-%m-%d %H:%M:%S') -> Dict[str, Any]:
