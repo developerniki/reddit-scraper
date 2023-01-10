@@ -79,8 +79,8 @@ def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame, collection_map: 
         if already_synced or errored_last_time:
             continue
 
-        collections = collection_map.get(row['link_flair_text'])
-        collections = [collections] if collections is not None else [collection_map['Uncategorized']]
+        link_flair_text = row['link_flair_text'] if row['link_flair_text'] != 'Criminal Justice' else 'Criminology'
+        collections = [collection_map.get(link_flair_text, collection_map['Uncategorized'])]
 
         if row['_metadata'] is None:
             item = {
