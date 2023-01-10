@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
+import json
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List, Dict, Any
 
-import pandas as pd
-
+from scripts.utils import reddit_utils
 from utils import metadata_utils
 
 logging.basicConfig(level=logging.INFO)
@@ -30,37 +30,75 @@ def parse_args() -> Tuple[str, Path]:
     return args.subreddit, file_path
 
 
-def process_raw_data(df: pd.DataFrame) -> None:
+def process_raw_data(submissions: List[Dict[str, Any]]) -> None:
     """Extract the actual URL from the submission body if the URL matches the permalink (and mark the row with a new
     `_is_url_from_selftext` column), extract  the summary from the comments into a new `_summary` column of the
     dataframe, and extract the paper type from the title, and mark every row with an '_is_research' flag to indicate
     whether the submission is or just a moderation post.
 
     Parameters:
-        df: The Reddit submission dataframe to process.
+        submissions: The submissions to process.
     """
-    # If the URL matches the permalink, then extract the actual URL from the submission body.
-    df['_is_url_from_selftext'] = df['url'] == 'https://www.reddit.com' + df['permalink']
-    df['url'] = df['url'].where(~df['_is_url_from_selftext'], df['selftext'].apply(metadata_utils.extract_markdown_url))
-
-    # Extract the summary.
-    # If the URL is from the selftext, then the summary is the first comment.
-    df.loc[df['_is_url_from_selftext'], '_summary'] = df['selftext']
-    # Otherwise, it is in the comments.
-    mask = ~df['_is_url_from_selftext'] & df['comments'].notna()
-    df.loc[mask, '_summary'] = df.loc[mask, 'comments'].apply(metadata_utils.extract_article_summary_from_comments)
-    df['_title_paper_type'] = df['title'].apply(metadata_utils.extract_paper_type_from_title)
-
     # Make a field to indicate whether the submission is research.
     non_research_flairs = ('Active Research', 'Mod Announcement', 'Mod News', 'Poll', 'Requests')
-    df['_is_research'] = df['link_flair_text'].apply(lambda flair: flair not in non_research_flairs)
+
+    for submission in submissions:
+        submission['_is_research'] = submission['link_flair_text'] not in non_research_flairs
+
+        if not submission['_is_research']:
+            continue
+
+        # Extract the paper type from the title.
+        submission['_paper_type'] = metadata_utils.extract_paper_type_from_title(submission['title'])
+
+        if submission['url'] == 'https://www.reddit.com' + submission['permalink']:
+            # Case 1. The URL is equal to 'https://www.reddit.com' + the permalink.
+            descriptions_and_urls = metadata_utils.extract_markdown_urls(submission['selftext'])
+            if len(descriptions_and_urls) == 0:
+                # Case 1a. The URL is in the title and the summary is the selftext.
+                title_urls = metadata_utils.extract_urls(submission['title'])
+                submission['_real_url'] = title_urls[0] if len(title_urls) > 0 else None
+                submission['_summary'] = submission['selftext']
+            elif submission['selftext'] == f'[{descriptions_and_urls[0][0]}]({descriptions_and_urls[0][1]})':
+                # Case 1b. The real URL is the selftext and the summary is in the comments.
+                submission['_real_url'] = descriptions_and_urls[0][1]
+                submission['_summary'] = metadata_utils.extract_article_summary_from_comments(submission['comments'])
+            else:
+                # Case 1c. The real URL is the first link in which the description stripped from '*' and '_' characters
+                # is the same as the URL, otherwise just the first link. The summary is the selftext.
+                for description, url in descriptions_and_urls:
+                    if description.strip('*_') == url:
+                        submission['_real_url'] = url
+                        break
+                else:  # No break.
+                    submission['_real_url'] = descriptions_and_urls[0][1]
+                submission['_summary'] = submission['selftext']
+        elif submission['url'].startswith('/r/'):
+            # Case 2. The URL is a permalink to another subreddit. Use praw to get the selftext of the URL and extract
+            # the real URL and the summary from the selftext.
+            reddit = reddit_utils.get_reddit_client()
+            submission['_crosspost_selftext'] = reddit.submission(
+                url=f'https://www.reddit.com{submission["url"]}'
+            ).selftext
+            real_urls = metadata_utils.extract_markdown_urls(submission['_crosspost_selftext'])
+            if len(real_urls) > 0:
+                submission['_real_url'] = real_urls[0][1]
+            else:
+                real_urls = metadata_utils.extract_urls(submission['_crosspost_selftext'])
+                submission['_real_url'] = real_urls[0] if len(real_urls) > 0 else None
+            submission['_summary'] = submission['_crosspost_selftext']
+        else:
+            # Case 3. The URL is not equal to the permalink. The real URL is the URL and the summary is in the comments.
+            submission['_real_url'] = submission['url']
+            submission['_summary'] = metadata_utils.extract_article_summary_from_comments(submission['comments'])
 
 
 if __name__ == '__main__':
     _logger.info('Processing raw data...')
     subreddit, file_path = parse_args()
-    df = pd.read_json(file_path) if file_path.exists() else pd.DataFrame()
+    submissions = json.loads(file_path.read_text()) if file_path.exists() else []
     # We re-process the raw data every time because it is low-cost and ensures that the data is always up-to-date.
-    process_raw_data(df)
-    df.to_json(file_path, orient='records', indent=4)
+    process_raw_data(submissions)
+
+    file_path.write_text(json.dumps(submissions, indent=4))
     _logger.info('Done processing raw data.')

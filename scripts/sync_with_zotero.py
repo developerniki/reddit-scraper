@@ -16,12 +16,22 @@ logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(Path(__file__).name)
 
 with open(Path(__file__).parent.parent / 'credentials' / 'zotero_credentials.json') as f:
-    ZOT_CRED = json.load(f)
+    ZOTERO_API_KEY = json.load(f)['api_key']
 
 
-def parse_args() -> Tuple[str, Path]:
+def parse_args() -> Tuple[str, Path, str, str]:
     parser = argparse.ArgumentParser(description='Sync with Zotero.')
     parser.add_argument('subreddit', type=str, help='The subreddit to sync with.')
+    parser.add_argument(
+        'library_type',
+        type=str,
+        help="The type of the library to sync with. Defaults to the library type stored in the credentials file.",
+    )
+    parser.add_argument(
+        'library_id',
+        type=str,
+        help="The ID of the library to sync with. Defaults to the library ID stored in the credentials file.",
+    )
     parser.add_argument(
         '-f',
         '--filename',
@@ -34,10 +44,10 @@ def parse_args() -> Tuple[str, Path]:
     filename = f'{args.filename or args.subreddit.lower()}.json'
     file_path = Path(__file__).parent.parent / 'data' / filename
     file_path.parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist.
-    return args.subreddit, file_path
+    return args.subreddit, file_path, args.library_type, args.library_id
 
 
-def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame) -> List[Dict[str, Any]]:
+def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame, collection_map: Dict[str, str]) -> List[Dict[str, Any]]:
     """Parse the data for Zotero.
 
     Skip the following submissions:
@@ -49,6 +59,7 @@ def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame) -> List[Dict[str
     Parameters:
         zot: The Zotero instance.
         df: The data to parse.
+        collection_map: A mapping from collection names to collection keys.
 
     Returns:
         A list of dictionaries, where each dictionary represents a Zotero item.
@@ -59,8 +70,6 @@ def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame) -> List[Dict[str
     df = df[df['_is_research']]
     # Remove rows where `removed_by_category` is not `None`, i.e. where the submission has been removed.
     df = df[df['removed_by_category'].isna()]
-    # Remove rows where `metadata` is `NaN` or `None`.
-    df = df[df['_metadata'].notna()]
 
     # Convert the metadata to a Zotero-friendly format.
     items = []
@@ -70,85 +79,107 @@ def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame) -> List[Dict[str
         if already_synced or errored_last_time:
             continue
 
-        # Handle preprints, theses, journal articles, book sections, and conference papers.
-        paper_type_to_item_type = defaultdict(lambda: 'journalArticle')
-        paper_type_to_item_type.update({
-            'thesis': 'thesis',
-            'book-section': 'bookSection',
-            'conference-paper': 'conferencePaper'
-        })
-        reddit_title_paper_type = row['_metadata']['_title_paper_type']
-        paper_type = row['_metadata'].get('type') or reddit_title_paper_type
-        item_type = paper_type_to_item_type[paper_type]
+        collections = collection_map.get(row['link_flair_text'])
+        collections = [collections] if collections is not None else [collection_map['Uncategorized']]
 
-        title = row['_metadata'].get('title')
-        title = title[0] if title and len(title) > 0 else row['title']
-        creators = row['_metadata'].get('author') or []
-        creators = [{'creatorType': 'author', 'firstName': creator.get('given'), 'lastName': creator.get('family')}
-                    for creator in creators]
-        publication_title = row['_metadata'].get('container-title')
-        publication_title = ', '.join(publication_title) if publication_title else None
-        volume = row['_metadata'].get('volume')
-        issue = row['_metadata'].get('issue')
-        pages = row['_metadata'].get('page')
-        date = row['_metadata'].get('issued')
-        date = date['date-parts'][0] if date and 'date-parts' in date else None
-        date = '-'.join(map(str, date)) if date else None
-        journal_abbreviation = row['_metadata'].get('short-container-title')
-        journal_abbreviation = ', '.join(journal_abbreviation) if journal_abbreviation else None
-        language = row['_metadata'].get('language')
-        doi = row['_metadata'].get('DOI')
-        issn = row['_metadata'].get('ISSN')
-        issn = ', '.join(issn) if issn else None
-        short_title = row['_metadata'].get('short-title')
-        short_title = ', '.join(short_title) if short_title else None
-        url = row['url'] or row['_metadata'].get('URL')
-        access_date = row['created_utc']
-        extra = json.dumps({
-            'reddit_link': row['permalink'],
-            'summary': row['_summary'],
-            'paper_type': paper_type,
-            'reddit_title': row['title'],
-            'reddit_title_paper_type': reddit_title_paper_type,
-            'reddit_author': row['author_name'],
-            'reddit_flair': row['link_flair_text'],
-            'reddit_upvotes': row['score'],
-            'reddit_summary': row['_summary'],
-        }, indent=2)
-        tags = [{'tag': tag} for tag in row['_metadata'].get('subject') or []]
-        abstract = row['_metadata'].get('abstract')
+        if row['_metadata'] is None:
+            item = {
+                'itemType': 'document',
+                'collections': collections,
+                'title': row['title'],
+                'url': row['_real_url'],
+                'accessDate': row['created_utc'],
+                'extra': json.dumps({
+                    'paper_type': '',
+                    'reddit_title_paper_type': row['_paper_type'],
+                    'reddit_link': row['permalink'],
+                    'reddit_title': row['title'],
+                    'reddit_author': row['author_name'],
+                    'reddit_flair': row['link_flair_text'],
+                    'reddit_upvotes': row['score'],
+                    'reddit_summary': row['_summary'],
+                }, indent=2),
+            }
+        else:
+            # Handle preprints, theses, journal articles, book sections, and conference papers.
+            paper_type_to_item_type = defaultdict(lambda: 'journalArticle')
+            paper_type_to_item_type.update({
+                'thesis': 'thesis',
+                'book-section': 'bookSection',
+                'conference-paper': 'conferencePaper'
+            })
+            reddit_title_paper_type = row['_paper_type']
+            paper_type = row['_metadata'].get('type') or reddit_title_paper_type
+            item_type = paper_type_to_item_type[paper_type]
 
-        item = {
-            'itemType': item_type,
-            'title': title,
-            'creators': creators,
-            'publicationTitle': publication_title,
-            'volume': volume,
-            'issue': issue,
-            'pages': pages,
-            'date': date,
-            'journalAbbreviation': journal_abbreviation,
-            'language': language,
-            'DOI': doi,
-            'ISSN': issn,
-            'shortTitle': short_title,
-            'url': url,
-            'accessDate': access_date,
-            'extra': extra,
-            'tags': tags,
-            'abstractNote': abstract,
-        }
+            title = row['_metadata'].get('title')
+            title = title[0] if title and len(title) > 0 else row['title']
+            creators = [{'creatorType': 'author', 'firstName': creator.get('given'), 'lastName': creator.get('family')}
+                        for creator in row['_metadata'].get('author') or []
+                        if creator.get('given') and creator.get('family')]
+            publication_title = row['_metadata'].get('container-title')
+            publication_title = ', '.join(publication_title) if publication_title else None
+            volume = row['_metadata'].get('volume')
+            issue = row['_metadata'].get('issue')
+            pages = row['_metadata'].get('page')
+            date = row['_metadata'].get('issued')
+            date = date['date-parts'][0] if date and 'date-parts' in date else None
+            date = '-'.join(map(str, date)) if date else None
+            journal_abbreviation = row['_metadata'].get('short-container-title')
+            journal_abbreviation = ', '.join(journal_abbreviation) if journal_abbreviation else None
+            language = row['_metadata'].get('language')
+            doi = row['_metadata'].get('DOI')
+            issn = row['_metadata'].get('ISSN')
+            issn = ', '.join(issn) if issn else None
+            short_title = row['_metadata'].get('short-title')
+            short_title = ', '.join(short_title) if short_title else None
+            url = row['_real_url'] or row['_metadata'].get('URL')
+            access_date = row['created_utc']
+            extra = json.dumps({
+                'paper_type': paper_type,
+                'reddit_title_paper_type': reddit_title_paper_type,
+                'reddit_link': row['permalink'],
+                'reddit_title': row['title'],
+                'reddit_author': row['author_name'],
+                'reddit_flair': row['link_flair_text'],
+                'reddit_upvotes': row['score'],
+                'reddit_summary': row['_summary'],
+            }, indent=2)
+            tags = [{'tag': tag} for tag in row['_metadata'].get('subject') or []]
+            abstract = row['_metadata'].get('abstract')
 
-        valid_keys = zot.item_template(item_type).keys()
-        item = {key: value for key, value in item.items() if key in valid_keys}
+            item = {
+                'itemType': item_type,
+                'collections': collections,
+                'title': title,
+                'creators': creators,
+                'publicationTitle': publication_title,
+                'volume': volume,
+                'issue': issue,
+                'pages': pages,
+                'date': date,
+                'journalAbbreviation': journal_abbreviation,
+                'language': language,
+                'DOI': doi,
+                'ISSN': issn,
+                'shortTitle': short_title,
+                'url': url,
+                'accessDate': access_date,
+                'extra': extra,
+                'tags': tags,
+                'abstractNote': abstract,
+            }
 
-        if item_type == 'thesis':
-            item['university'] = row['_metadata'].get('publisher')
-        elif item_type == 'bookSection':
-            item['bookTitle'] = row['_metadata'].get('container-title')
-        elif item_type == 'conferencePaper':
-            event = row['_metadata'].get('event')
-            item['conferenceName'] = event and event.get('name')
+            valid_keys = zot.item_template(item_type).keys()
+            item = {key: value for key, value in item.items() if key in valid_keys}
+
+            if item_type == 'thesis':
+                item['university'] = row['_metadata'].get('publisher')
+            elif item_type == 'bookSection':
+                item['bookTitle'] = row['_metadata'].get('container-title')
+            elif item_type == 'conferencePaper':
+                event = row['_metadata'].get('event')
+                item['conferenceName'] = event and event.get('name')
 
         items.append(item)
 
@@ -174,17 +205,21 @@ def add_sync_cols(df: pd.DataFrame):
 
 if __name__ == '__main__':
     _logger.info('Uploading to Zotero...')
-    subreddit, subreddit_path = parse_args()
+    subreddit, subreddit_path, library_type, library_id = parse_args()
     df = pd.read_json(subreddit_path)
 
     # Add the columns that are used to keep track of the sync status to the dataframe.
     add_sync_cols(df)
 
     # Initialize the Zotero library.
-    zot = zotero.Zotero(**ZOT_CRED)
+    zot = zotero.Zotero(library_id=library_id, library_type=library_type, api_key=ZOTERO_API_KEY)
+
+    # Get the sub-collections of the library.
+    collections = zot.collections()
+    collection_map = {collection['data']['name']: collection['data']['key'] for collection in collections}
 
     # Parse the data for Zotero.
-    items = parse_data_for_zotero(zot, df)
+    items = parse_data_for_zotero(zot, df, collection_map)
 
     # Get current items in the library.
     existing_items = defaultdict(list)
@@ -242,9 +277,9 @@ if __name__ == '__main__':
                 total_failed += len(resp['failed'])
             except zotero_errors.UserNotAuthorised:
                 _logger.error(
-                    f'User not authorized to upload to the Zotero library with ID {ZOT_CRED["library_id"]}. Please '
-                    f'check your credentials in the file "credentials/zotero_credentials.json" and the permissions of '
-                    f'your API key at "https://www.zotero.org/settings/keys".'
+                    f'User not authorized to upload to the Zotero library with ID {library_id}. Please check your '
+                    f'credentials in the file "credentials/zotero_credentials.json" and the permissions of your API '
+                    f'key at "https://www.zotero.org/settings/keys".'
                 )
                 sys.exit(1)
             except zotero_errors.HTTPError:

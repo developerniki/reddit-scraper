@@ -5,7 +5,7 @@ import logging
 import re
 from collections import deque
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Tuple
 from typing import List
 from typing import Optional
 
@@ -19,23 +19,40 @@ from pyppeteer_stealth import stealth
 _logger = logging.getLogger(Path(__file__).name)
 
 # Compile regular expression patterns.
-PATTERN_MARKDOWN_URL = re.compile(r'\[.+\]\((?P<url>https?://\S+)\)')
+PATTERN_URL_STR = r'https?://\S+'
+PATTERN_URL = re.compile(PATTERN_URL_STR)
+PATTERN_MARKDOWN_URL = re.compile(fr'\[(?P<description>.+)\]\((?P<url>{PATTERN_URL_STR})\)')
 PATTERN_STR_DOI = r'10.\d{4,9}/[-._;()/:\w]+'  # https://www.crossref.org/blog/dois-and-matching-regular-expressions/
 # After the `\S+`, we could use `/|doi=` but the second part is part of a query string which we cannot rely on.
 PATTERN_DOI_URL = re.compile(fr'https?://\S+/(?P<doi>{PATTERN_STR_DOI})(/|\?.*)?')
 
 
-def extract_markdown_url(text: str) -> Optional[str]:
-    """Extract the first URL in `text` containing a Markdown string.
+def extract_markdown_urls(text: str) -> List[Tuple[str, str]]:
+    """Extract all Markdown URLs from the given text.
 
     Parameters:
         text: The Markdown string to extract the URL from.
 
     Returns:
-        The first URL found in the string, or `None` if no URL was found.
+        A list of tuples containing the description and URL of each Markdown URL.
     """
-    m = PATTERN_MARKDOWN_URL.search(text)
-    return m.group('url') if m else None
+    m = PATTERN_MARKDOWN_URL.findall(text)
+    return m
+
+
+def extract_urls(text: str) -> List[str]:
+    """Extract all URLs from the given text.
+
+    Parameters:
+        text: The text to extract the URLs from.
+
+    Returns:
+        A list of URLs.
+    """
+    urls = PATTERN_URL.findall(text)
+    # If the last character of the URL is a dot or a comma or a closing parenthesis, remove it.
+    urls = [url[:-1] if url[-1] in ('.', ',', ')') else url for url in urls]
+    return urls
 
 
 def extract_article_summary_from_comments(comments: List[Dict]) -> str:

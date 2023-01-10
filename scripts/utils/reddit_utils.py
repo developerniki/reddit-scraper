@@ -72,7 +72,7 @@ def _fetch_submissions(submissions_iter: Iterator[Submission], until_id: Optiona
         submissions.append(submission_parsed)
     return submissions
 
-    # TODO Fetch the rest using praw.
+    # TODO Fetch the rest using the Pushshift API.
 
 
 def fetch_subreddit_submissions(reddit: Reddit, subreddit: str, until_id: Optional[str] = None) -> List[Dict[str, Any]]:

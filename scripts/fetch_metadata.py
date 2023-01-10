@@ -45,14 +45,14 @@ def fetch_metadata(df: pd.DataFrame) -> None:
     if '_metadata' not in df.columns:
         df['_metadata'] = np.nan
 
-    if '_metadata_failed' not in df.columns:
-        df['_metadata_failed'] = False
+    if '_metadata_error' not in df.columns:
+        df['_metadata_error'] = False
 
-    rows_to_fetch_metadata_for = df[(df['_is_research']) & (df['_metadata'].isna()) & (~df['_metadata_failed'])]
+    rows_to_fetch_metadata_for = df[(df['_is_research']) & (df['_metadata'].isna()) & (~df['_metadata_error'])]
 
     # Iterate through the rows that need to fetch metadata
     for index, row in tqdm(rows_to_fetch_metadata_for.iterrows(), total=len(rows_to_fetch_metadata_for)):
-        article_metadata = metadata_utils.fetch_article_metadata(row['title'], row['url'])
+        article_metadata = metadata_utils.fetch_article_metadata(row['title'], row['_real_url'])
 
         if article_metadata is None:
             df.at[index, '_metadata'] = np.nan
@@ -62,7 +62,7 @@ def fetch_metadata(df: pd.DataFrame) -> None:
                 article_metadata = metadata_utils.closest_match(row['title'], article_metadata['items'])
             df.at[index, '_metadata'] = article_metadata
             if article_metadata is None:
-                df.at[index, '_metadata_failed'] = True
+                df.at[index, '_metadata_error'] = True
 
 
 if __name__ == '__main__':

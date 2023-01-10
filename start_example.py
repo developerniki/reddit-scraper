@@ -11,8 +11,23 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-GOOGLE_SHEETS_URL = 'https://docs.google.com/spreadsheets/d/1BaOq-cgq7IXPcVn0plo__giy_GGKGPsLOnz3zEgh4EM'
-SUBREDDITS = ('Male_Studies', 'FemaleStudies')
+GOOGLE_SHEETS_URL = '<GOOGLE SHEETS URL>'
+SUBREDDITS = (
+    {
+        'name': '<SUBREDDIT NAME>',
+        'google_sheets_url': GOOGLE_SHEETS_URL,
+        'google_sheets_num': '0',
+        'zotero_library_id': '<ZOTERO LIBRARY ID>',
+        'zotero_library_type': 'group',
+    },
+    {
+        'name': '<SUBREDDIT NAME>',
+        'google_sheets_url': GOOGLE_SHEETS_URL,
+        'google_sheets_num': '1',
+        'zotero_library_id': '<ZOTERO LIBRARY ID>',
+        'zotero_library_type': 'group',
+    },
+)
 PYTHON = str((Path(__file__).parent / '.venv' / 'bin' / 'python'))
 DATA_PATH = Path(__file__).parent / 'data'
 BACKUP_PATH = DATA_PATH / 'backups'
@@ -38,15 +53,18 @@ def backup_data() -> None:
 if __name__ == '__main__':
     _logger.info('Executing full scraping pipeline...')
     backup_data()
-    for google_sheets_num, subreddit in enumerate(SUBREDDITS):
-        google_sheets_num = str(google_sheets_num)
-        subprocess.run([PYTHON, 'scripts/fetch_submissions.py', subreddit])
-        subprocess.run([PYTHON, 'scripts/fetch_comments.py', subreddit])
-        subprocess.run([PYTHON, 'scripts/update_recent_submissions_and_comments.py', subreddit])
-        subprocess.run([PYTHON, 'scripts/process_raw.py', subreddit])
-        subprocess.run([PYTHON, 'scripts/fetch_metadata.py', subreddit])
-        subprocess.run([PYTHON, 'scripts/sync_with_google_sheets.py', subreddit, GOOGLE_SHEETS_URL, google_sheets_num])
-        subprocess.run([PYTHON, 'scripts/sync_with_zotero.py', subreddit])
-        subprocess.run([PYTHON, 'scripts/handle_manually_synced_files.py', subreddit])
-        subprocess.run([PYTHON, 'scripts/create_manual_zotero_checklist.py', subreddit])
+    for subreddit in SUBREDDITS:
+        name = subreddit['name']
+        sheets_url = subreddit['google_sheets_url']
+        sheets_num = subreddit['google_sheets_num']
+        library_id = subreddit['zotero_library_id']
+        library_type = subreddit['zotero_library_type']
+
+        subprocess.run([PYTHON, 'scripts/fetch_submissions.py', name])
+        subprocess.run([PYTHON, 'scripts/fetch_comments.py', name])
+        subprocess.run([PYTHON, 'scripts/update_recent_submissions_and_comments.py', name])
+        subprocess.run([PYTHON, 'scripts/process_raw.py', name])
+        subprocess.run([PYTHON, 'scripts/fetch_metadata.py', name])
+        subprocess.run([PYTHON, 'scripts/sync_with_google_sheets.py', name, sheets_url, sheets_num])
+        subprocess.run([PYTHON, 'scripts/sync_with_zotero.py', name, library_type, library_id])
     _logger.info('Finished executing full scraping pipeline.')

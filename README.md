@@ -12,17 +12,13 @@ In order to use these scripts, you will need:
   password, username, and user agent) in a file called `credentials/praw_credentials.json`.
 - A Google account and a Google Sheet. You will also need to create a Google service account and provide its credentials
   in a file called `credentials/google_service_account.json`.
-- A Zotero account and library. If you want to upload the articles to Zotero, you will need to provide your Zotero
-  library ID, library type (either 'user' or 'group'), and API key in a file
-  called `credentials/zotero_credentials.json`. The [Pyzotero quickstart guide](https://github.com/urschrei/pyzotero)
-  explains this process in more detail.
+- A Zotero account and library. If you want to upload the articles to Zotero, you will need to provide your Zotero API
+  key in a file called `credentials/zotero_credentials.json`.
 
 The `zotero_credentials.json` has the following structure:
 
 ```json
 {
-  "library_id": "<library ID>",
-  "library_type": "<library group>",
   "api_key": "<API key>"
 }
   ```
@@ -88,12 +84,5 @@ further processing.
 
 ## Future work
 
-- [ ] Add Zotero items to the correct sub-collection.
-- [ ] Allow adding to multiple Zotero libraries.
-
-- [ ] Update extra field of manually added items in Zotero.
-- [ ] Handle papers for which we failed to obtain metadata or which failed to sync to Zotero because of missing fields.
-    - [ ] Handle PubMed and NCBI URLs by extracting the PMID or PMCID from the URL.
-    - [ ] Implement a way to fetch the metadata from PDFs.
 - [ ] Store the metadata separately from the raw data in a file called `metadata/<filename>.json` and move the original
   data to a file called `raw/<filename>.json`.

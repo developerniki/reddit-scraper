@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Tuple, List, Any
+from typing import Tuple, List, Any, Optional
 
 import gspread
 import pandas as pd
@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(Path(__file__).name)
 
 
-def parse_args() -> Tuple[str, Path, str, int]:
+def parse_args() -> Tuple[str, Path, str, int, bool]:
     parser = argparse.ArgumentParser(description='Sync the submissions with Google Sheets.')
     parser.add_argument('subreddit', type=str, help='The subreddit to sync with.')
     parser.add_argument('google_sheet_url', type=str, help='The URL of the Google Sheet to sync with.')
@@ -28,26 +28,70 @@ def parse_args() -> Tuple[str, Path, str, int]:
              "lowercase name of the subreddit. For example, if the subreddit is 'r/Python', the default "
              "filename is 'python'.",
     )
+    parser.add_argument(
+        '-a',
+        '--always-sync',
+        action='store_true',
+        help="Sync the data with Google Sheets even if the data is already synced.",
+    )
     args = parser.parse_args()
     filename = f'{args.filename or args.subreddit.lower()}.json'
     file_path = Path(__file__).parent.parent / 'data' / filename
     file_path.parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist.
-    return args.subreddit, file_path, args.google_sheet_url, args.google_sheet_number
+    return args.subreddit, file_path, args.google_sheet_url, args.google_sheet_number, args.always_sync
+
+
+def to_sheets_hyperlink(url: str, label: Optional[str] = None) -> str:
+    """Turn a URL into a hyperlink.
+
+    Parameters:
+        url: The URL to turn into a hyperlink.
+        label: The label of the hyperlink. If `None`, no label is used.
+
+    Returns:
+        The URL as a hyperlink.
+    """
+    if label is None:
+        return f'=HYPERLINK("{url}")'
+    else:
+        return f'=HYPERLINK("{url}","{label}")'
 
 
 # Parse the data for the Google Sheets API:
 def parse_data_for_google_sheets(df: pd.DataFrame) -> List[List[Any]]:
-    """Parse the data for the Google Sheets API."""
+    """Parse the data for the Google Sheets API.
+
+    Parameters:
+        df: The dataframe to parse.
+
+    Returns:
+        The parsed data.
+    """
     # Copy the dataframe, so we don't modify the original.
     df = df.copy()
     # Remove non-research submissions.
     df = df[df['_is_research']]
     # Remove rows where `removed_by_category` is not `None`, i.e. where the submission has been removed.
     df = df[df['removed_by_category'].isna()]
+    # Add 'https://www.reddit.com' to the beginning of the permalink.
+    df['permalink'] = 'https://www.reddit.com' + df['permalink']
+    # Turn both URL and permalink into hyperlinks.
+    df['_real_url'] = df['_real_url'].apply(to_sheets_hyperlink)
+    df['permalink'] = df['permalink'].apply(to_sheets_hyperlink)
     # Remove unwanted columns.
-    header = ['title', 'url', 'permalink', 'link_flair_text', 'author_name', 'created_utc', '_summary']
+    header = ['title', '_real_url', 'permalink', 'link_flair_text', 'author_name', 'created_utc', '_summary']
     df = df[header]
-    # Fill `null` values with '—'
+    # Rename the columns.
+    df = df.rename({
+        'title': 'Title',
+        '_real_url': 'URL',
+        'permalink': 'Reddit Link',
+        'link_flair_text': 'Flair',
+        'author_name': 'Author',
+        'created_utc': 'Date',
+        '_summary': 'Summary',
+    }, axis=1)
+    # Fill `null` values with '—' (em dash).
     df = df.fillna(value='—')
     # Convert the dataframe to a list of lists.
     data = [df.columns.tolist()] + df.values.tolist()
@@ -56,11 +100,11 @@ def parse_data_for_google_sheets(df: pd.DataFrame) -> List[List[Any]]:
 
 if __name__ == '__main__':
     # Parse the command line arguments and read the subreddit's JSON file into a dataframe.
-    subreddit, subreddit_path, sheet_url, sheet_number = parse_args()
+    subreddit, subreddit_path, sheet_url, sheet_number, always_sync = parse_args()
     df = pd.read_json(subreddit_path) if subreddit_path.exists() else pd.DataFrame()
 
     # Add the `synced_with_google_sheets` column if it does not exist yet and update `null` values to `False`.
-    if '_synced_with_google_sheets' not in df.columns:
+    if '_synced_with_google_sheets' not in df.columns or always_sync:
         df['_synced_with_google_sheets'] = False
     df['_synced_with_google_sheets'] = df['_synced_with_google_sheets'].fillna(False)
 
@@ -99,12 +143,35 @@ if __name__ == '__main__':
         worksheet = spreadsheet.add_worksheet(title=f'{subreddit}', rows='1000', cols='26')
 
     # Send the data to the Google Sheets API.
-    response = worksheet.update('A1', data)
+    response = worksheet.clear()
+    _logger.debug(f'Google Sheets API response: {response}')
+    worksheet.format(f'A1:Z{len(data)}', {'horizontalAlignment': 'LEFT'})
+    response = worksheet.format(f'A2:Z{len(data)}', {'textFormat': {'bold': False}})
     _logger.info(f'Google Sheets API response: {response}')
-    response = worksheet.format(f'A2:Z{len(data) + 1}', {'textFormat': {'bold': False}})
+    response = worksheet.format('A1:Z1', {'textFormat': {'bold': True, 'underline': True}})
     _logger.info(f'Google Sheets API response: {response}')
-    response = worksheet.format('A1:Z1', {'textFormat': {'bold': True}})
+    response = worksheet.resize(rows=len(data), cols=len(data[0]))
     _logger.info(f'Google Sheets API response: {response}')
+    response = worksheet.update('A1', data, value_input_option='USER_ENTERED')
+    _logger.info(f'Google Sheets API response: {response}')
+    # The following code ensures that the columns are resized to fit the content. It is commented out because it is
+    # really slow and the optimal sizes do not usually change much.
+    # body = {
+    #     'requests': [
+    #         {
+    #             'autoResizeDimensions': {
+    #                 'dimensions': {
+    #                     'sheetId': worksheet._properties['sheetId'],
+    #                     'dimension': 'COLUMNS',
+    #                     'startIndex': 0,
+    #                     'endIndex': len(data[0])
+    #                 }
+    #             }
+    #         }
+    #     ]
+    # }
+    # response = spreadsheet.batch_update(body)
+    # _logger.info(f'Google Sheets API response: {response}')
 
     # For all rows, set a new field `synced_with_google_sheets` to `True`.
     df['_synced_with_google_sheets'] = True
