@@ -31,10 +31,18 @@ def parse_args() -> Tuple[str, Path]:
 
 
 def process_raw_data(submissions: List[Dict[str, Any]]) -> None:
-    """Extract the actual URL from the submission body if the URL matches the permalink (and mark the row with a new
-    `_is_url_from_selftext` column), extract  the summary from the comments into a new `_summary` column of the
-    dataframe, and extract the paper type from the title, and mark every row with an '_is_research' flag to indicate
-    whether the submission is or just a moderation post.
+    """Extract the URL and summary from the raw data and store them in the '_real_url' and '_summary' fields.
+
+    The following cases are considered:
+    1. The URL is equal to 'https://www.reddit.com' + the permalink.
+        a. The URL is in the title and the summary is the selftext.
+        b. The real URL is the selftext and the summary is in the comments.
+        c. The real URL is the first link in which the description stripped from '*' and '_' characters is the same
+              as the URL, otherwise just the first link. The summary is the selftext.
+    2. The URL is a permalink to another subreddit. Use praw to get the selftext of the URL and extract the real URL and
+       the summary from the selftext.
+    3. The URL is not equal to the permalink. The real URL is the URL and the summary is in the comments.
+
 
     Parameters:
         submissions: The submissions to process.
