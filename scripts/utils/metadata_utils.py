@@ -227,14 +227,13 @@ def fetch_article_metadata(title: Optional[str], url: Optional[str] = None) -> O
     cr = habanero.Crossref()
     doi = get_doi(url) if url is not None else None
 
-    if doi is not None:
+    if doi is not None and doi != '':
         try:
             res = cr.works(ids=doi)
             if isinstance(res, dict):
                 return res.get('message')
             else:
                 _logger.error(f'Error while fetching metadata for DOI "{doi}": {res=} is not a dictionary.')
-                return None
         except requests.exceptions.HTTPError:
             pass
 

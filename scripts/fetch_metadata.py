@@ -48,7 +48,8 @@ def fetch_metadata(df: pd.DataFrame) -> None:
     if '_metadata_error' not in df.columns:
         df['_metadata_error'] = False
 
-    rows_to_fetch_metadata_for = df[(df['_is_research']) & (df['_metadata'].isna()) & (~df['_metadata_error'])]
+    rows_to_fetch_metadata_for = df[(df['_is_research']) & (df['_metadata'].isna())
+                                    & (df['_metadata_error'].isna() | ~df['_metadata_error'])]
 
     # Iterate through the rows that need to fetch metadata
     for index, row in tqdm(rows_to_fetch_metadata_for.iterrows(), total=len(rows_to_fetch_metadata_for)):
@@ -63,6 +64,8 @@ def fetch_metadata(df: pd.DataFrame) -> None:
             df.at[index, '_metadata'] = article_metadata
             if article_metadata is None:
                 df.at[index, '_metadata_error'] = True
+            else:
+                df.at[index, '_metadata_error'] = False
 
 
 if __name__ == '__main__':
