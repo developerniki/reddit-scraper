@@ -98,7 +98,7 @@ def process_raw_data(submissions: List[Dict[str, Any]]) -> None:
         else:
             # Case 3. The URL is not equal to the permalink. The real URL is the URL and the summary is in the comments.
             submission['_real_url'] = submission['url']
-            submission['_summary'] = metadata_utils.extract_article_summary_from_comments(submission['comments'])
+            submission['_summary'] = metadata_utils.extract_article_summary_from_comments(submission['comments'] or [])
 
 
 if __name__ == '__main__':

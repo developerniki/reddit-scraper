@@ -48,8 +48,11 @@ def fetch_metadata(df: pd.DataFrame) -> None:
     if '_metadata_error' not in df.columns:
         df['_metadata_error'] = False
 
-    rows_to_fetch_metadata_for = df[(df['_is_research']) & (df['_metadata'].isna())
-                                    & (df['_metadata_error'].isna() | ~df['_metadata_error'])]
+    # Not sure if the following two lines are necessary but we'll keep them for now.
+    df['_is_research'] = df['_is_research'].astype(bool).fillna(False)
+    df['_metadata_error'] = df['_metadata_error'].astype(bool).fillna(False)
+
+    rows_to_fetch_metadata_for = df[df['_is_research'] & df['_metadata'].isna() & ~df['_metadata_error']]
 
     # Iterate through the rows that need to fetch metadata
     for index, row in tqdm(rows_to_fetch_metadata_for.iterrows(), total=len(rows_to_fetch_metadata_for)):
