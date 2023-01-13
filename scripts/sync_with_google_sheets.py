@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(Path(__file__).name)
 
 
-def parse_args() -> Tuple[str, Path, str, int, bool]:
+def parse_args() -> Tuple[str, Path, str, int, bool, bool]:
     parser = argparse.ArgumentParser(description='Sync the submissions with Google Sheets.')
     parser.add_argument('subreddit', type=str, help='The subreddit to sync with.')
     parser.add_argument('google_sheet_url', type=str, help='The URL of the Google Sheet to sync with.')
@@ -32,13 +32,20 @@ def parse_args() -> Tuple[str, Path, str, int, bool]:
         '-a',
         '--always-sync',
         action='store_true',
-        help="Sync the data with Google Sheets even if the data is already synced.",
+        help='Sync the data with Google Sheets even if the data is already synced.',
+    )
+    # add argument to resize columns
+    parser.add_argument(
+        '-r',
+        '--resize-cols',
+        action='store_true',
+        help='Resize the columns to fit the data.',
     )
     args = parser.parse_args()
     filename = f'{args.filename or args.subreddit.lower()}.json'
     file_path = Path(__file__).parent.parent / 'data' / filename
     file_path.parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist.
-    return args.subreddit, file_path, args.google_sheet_url, args.google_sheet_number, args.always_sync
+    return args.subreddit, file_path, args.google_sheet_url, args.google_sheet_number, args.always_sync, args.resize_cols
 
 
 def to_sheets_hyperlink(url: str, label: Optional[str] = None) -> str:
@@ -79,7 +86,7 @@ def parse_data_for_google_sheets(df: pd.DataFrame) -> List[List[Any]]:
     df['_real_url'] = df['_real_url'].apply(to_sheets_hyperlink)
     df['permalink'] = df['permalink'].apply(to_sheets_hyperlink)
     # Remove unwanted columns.
-    header = ['title', '_real_url', 'permalink', 'link_flair_text', 'author_name', 'created_utc', '_summary']
+    header = ['title', '_real_url', 'permalink', 'link_flair_text', 'author_name', 'created_utc', '_summary', 'score']
     df = df[header]
     # Rename the columns.
     df = df.rename({
@@ -100,7 +107,7 @@ def parse_data_for_google_sheets(df: pd.DataFrame) -> List[List[Any]]:
 
 if __name__ == '__main__':
     # Parse the command line arguments and read the subreddit's JSON file into a dataframe.
-    subreddit, subreddit_path, sheet_url, sheet_number, always_sync = parse_args()
+    subreddit, subreddit_path, sheet_url, sheet_number, always_sync, resize_cols = parse_args()
     df = pd.read_json(subreddit_path) if subreddit_path.exists() else pd.DataFrame()
 
     # Add the `synced_with_google_sheets` column if it does not exist yet and update `null` values to `False`.
@@ -154,24 +161,27 @@ if __name__ == '__main__':
     _logger.info(f'Google Sheets API response: {response}')
     response = worksheet.update('A1', data, value_input_option='USER_ENTERED')
     _logger.info(f'Google Sheets API response: {response}')
-    # The following code ensures that the columns are resized to fit the content. It is commented out because it is
-    # really slow and the optimal sizes do not usually change much.
-    # body = {
-    #     'requests': [
-    #         {
-    #             'autoResizeDimensions': {
-    #                 'dimensions': {
-    #                     'sheetId': worksheet._properties['sheetId'],
-    #                     'dimension': 'COLUMNS',
-    #                     'startIndex': 0,
-    #                     'endIndex': len(data[0])
-    #                 }
-    #             }
-    #         }
-    #     ]
-    # }
-    # response = spreadsheet.batch_update(body)
-    # _logger.info(f'Google Sheets API response: {response}')
+
+    if resize_cols:
+        # The following code ensures that the columns are resized to fit the content.
+        _logger.info('Resizing columns...')
+        body = {
+            'requests': [
+                {
+                    'autoResizeDimensions': {
+                        'dimensions': {
+                            'sheetId': worksheet._properties['sheetId'],
+                            'dimension': 'COLUMNS',
+                            'startIndex': 0,
+                            'endIndex': len(data[0])
+                        }
+                    }
+                }
+            ]
+        }
+        response = spreadsheet.batch_update(body)
+        _logger.info('Resizing columns done.')
+        _logger.info(f'Google Sheets API response: {response}')
 
     # For all rows, set a new field `synced_with_google_sheets` to `True`.
     df['_synced_with_google_sheets'] = True
