@@ -26,7 +26,7 @@ def parse_args() -> Tuple[str, Path, str, int, bool, bool]:
         type=str,
         help="The name of the JSON file that stores the data without the file suffix. Defaults to the "
              "lowercase name of the subreddit. For example, if the subreddit is 'r/Python', the default "
-             "filename is 'python'.",
+             "filename is 'r_python'.",
     )
     parser.add_argument(
         '-a',
@@ -42,7 +42,7 @@ def parse_args() -> Tuple[str, Path, str, int, bool, bool]:
         help='Resize the columns to fit the data.',
     )
     args = parser.parse_args()
-    filename = f'{args.filename or args.subreddit.lower()}.json'
+    filename = f'r_{args.filename or args.subreddit.lower()}.json'
     file_path = Path(__file__).parent.parent / 'data' / filename
     file_path.parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist.
     return args.subreddit, file_path, args.google_sheet_url, args.google_sheet_number, args.always_sync, args.resize_cols

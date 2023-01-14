@@ -23,13 +23,13 @@ def parse_args() -> Tuple[str, Path, int]:
         type=str,
         help="The name of the JSON file that stores the data without the file suffix. Defaults to the "
              "lowercase name of the subreddit. For example, if the subreddit is 'r/Python', the default "
-             "filename is 'python'.",
+             "filename is 'r_python'.",
     )
     parser.add_argument('-m', '--max-comments', type=int, default=None, help='The maximum number of comments to expand '
                                                                              'per submission. If not specified, expand '
                                                                              'all comments.')
     args = parser.parse_args()
-    filename = f'{args.filename or args.subreddit.lower()}.json'
+    filename = f'r_{args.filename or args.subreddit.lower()}.json'
     file_path = Path(__file__).parent.parent / 'data' / filename
     file_path.parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist.
     return args.subreddit, file_path, args.max_comments

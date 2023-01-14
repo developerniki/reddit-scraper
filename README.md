@@ -84,5 +84,6 @@ further processing.
 
 ## Future work
 
-- [ ] Store the metadata separately from the raw data in a file called `metadata/<filename>.json` and move the original
-  data to a file called `raw/<filename>.json`.
+- [ ] Add scripts to download user posts and comments.
+- [ ] Also archive images and videos.
+- [ ] Use PRAW to download older submissions and comments.
