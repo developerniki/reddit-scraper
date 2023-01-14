@@ -6,8 +6,7 @@ import logging
 from pathlib import Path
 from typing import Tuple, List, Dict, Any
 
-from scripts.utils import reddit_utils
-from utils import metadata_utils
+from utils import reddit_utils, metadata_utils
 
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(Path(__file__).name)
