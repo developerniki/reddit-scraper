@@ -74,7 +74,7 @@ def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame, collection_map: 
     # Convert the metadata to a Zotero-friendly format.
     items = []
     for index, row in df.iterrows():
-        already_synced = row['_synced_with_zotero'] or row['_manually_synced_with_zotero']
+        already_synced = row['_synced_with_zotero']
         errored_last_time = row['_zotero_sync_error'] is not None
         if already_synced or errored_last_time:
             continue
@@ -196,11 +196,6 @@ def add_sync_cols(df: pd.DataFrame):
     # Add the `_zotero_sync_error` column if it does not exist yet.
     if '_zotero_sync_error' not in df.columns:
         df['_zotero_sync_error'] = None
-
-    # Add the `_manually_synced_with_zotero` column if it does not exist yet and update `null` values to `False`.
-    if '_manually_synced_with_zotero' not in df.columns:
-        df['_manually_synced_with_zotero'] = False
-    df['_manually_synced_with_zotero'] = df['_manually_synced_with_zotero'].fillna(False)
 
 
 if __name__ == '__main__':
