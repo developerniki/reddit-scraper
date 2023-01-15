@@ -86,4 +86,4 @@ further processing.
 
 - [ ] Add scripts to download user posts and comments.
 - [ ] Also archive images and videos.
-- [ ] Use PRAW to download older submissions and comments.
+- [ ] Use Pushshift.io to download older submissions and comments.
