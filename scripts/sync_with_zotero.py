@@ -74,9 +74,11 @@ def parse_data_for_zotero(zot: zotero.Zotero, df: pd.DataFrame, collection_map: 
     # Convert the metadata to a Zotero-friendly format.
     items = []
     for index, row in df.iterrows():
-        already_synced = row['_synced_with_zotero']
-        errored_last_time = row['_zotero_sync_error'] is not None
-        if already_synced or errored_last_time:
+        if row['_synced_with_zotero']:
+            continue
+
+        if pd.notna(row['_zotero_sync_error']):
+            _logger.warning(f'Skipping {row["id"]} because it raised an error last time: {row["_zotero_sync_error"]}')
             continue
 
         link_flair_text = row['link_flair_text'] if row['link_flair_text'] != 'Criminal Justice' else 'Criminology'
