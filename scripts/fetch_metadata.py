@@ -43,10 +43,10 @@ def fetch_metadata(df: pd.DataFrame) -> None:
     """
 
     if '_metadata' not in df.columns:
-        df['_metadata'] = np.nan
+        df['_metadata'] = None
 
     if '_metadata_error' not in df.columns:
-        df['_metadata_error'] = False
+        df['_metadata_error'] = None
 
     # Not sure if the following two lines are necessary but we'll keep them for now.
     df['_is_research'] = df['_is_research'].astype(bool).fillna(False)
@@ -59,7 +59,7 @@ def fetch_metadata(df: pd.DataFrame) -> None:
         article_metadata = metadata_utils.fetch_article_metadata(row['title'], row['_real_url'])
 
         if article_metadata is None:
-            df.at[index, '_metadata'] = np.nan
+            df.at[index, '_metadata'] = None
         else:
             if 'items' in article_metadata:
                 # If there are multiple items, then take the closest match to the title.
