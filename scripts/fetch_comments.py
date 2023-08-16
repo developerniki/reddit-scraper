@@ -2,16 +2,13 @@
 
 import argparse
 import json
-import logging
+from datetime import datetime
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Dict, Any
 
+from praw import Reddit
+from praw.models import Comment
 from tqdm import tqdm
-
-from utils import reddit_utils
-
-logging.basicConfig(level=logging.INFO)
-_logger = logging.getLogger(Path(__file__).name)
 
 
 def parse_args() -> Tuple[str, Path, int]:
@@ -30,22 +27,51 @@ def parse_args() -> Tuple[str, Path, int]:
                                                                              'all comments.')
     args = parser.parse_args()
     filename = f'r_{args.filename or args.subreddit.lower()}.json'
-    file_path = Path(__file__).parent.parent / 'data' / filename
+    file_path = Path(__file__).parents[1].absolute() / 'data' / filename
     file_path.parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist.
     return args.subreddit, file_path, args.max_comments
 
 
-if __name__ == '__main__':
-    _logger.info('Fetching comments for submissions...')
-    subreddit, file_path, max_comments = parse_args()
-    reddit = reddit_utils.get_reddit_client()
+def parse_comment(comment: Comment, datetime_fmt='%Y-%m-%d %H:%M:%S') -> Dict[str, Any]:
+    comment_parsed = {
+        # The author is `None` if the Reddit account does not exist anymore.
+        'author_name': comment.author and comment.author.name,
+        'body': comment.body,
+        'created_utc': datetime.fromtimestamp(comment.created_utc).strftime(datetime_fmt),
+        'distinguished': comment.distinguished,
+        'edited': comment.edited,
+        'id': comment.id,
+        'is_submitter': comment.is_submitter,
+        'link_id': comment.link_id,
+        'parent_id': comment.parent_id,
+        'permalink': comment.permalink,
+        'replies': [parse_comment(comment) for comment in comment.replies],
+        'score': comment.score,
+        'stickied': comment.stickied,
+    }
+    return comment_parsed
 
-    submissions = json.loads(file_path.read_text()) if file_path.exists() else []
-    for submission in tqdm(submissions):
+
+def main() -> None:
+    print('Fetching comments for submissions...')
+    subreddit, file_path, max_comments = parse_args()
+    praw_credentials_file = Path(__file__).parents[1].absolute() / 'credentials' / 'praw_credentials.json'
+    praw_credentials = json.loads(praw_credentials_file.read_text())
+    reddit = Reddit(**praw_credentials)
+    reddit.read_only = True
+
+    submissions = json.loads(file_path.read_text(encoding='utf-8')) if file_path.exists() else []
+    for submission in tqdm(submissions, total=sum(1 for s in submissions if s.get('comments') is None)):
         # Only fetch comments for submissions that don't have any comments yet.
         if submission.get('comments') is None:
-            submission['comments'] = reddit_utils.fetch_comments(reddit.submission(submission['id']),
-                                                                 limit=max_comments)
+            comments = reddit.submission(submission['id']).comments
+            comments.replace_more(limit=None)
+            comments = [parse_comment(top_level_comment) for top_level_comment in comments]
+            submission['comments'] = comments
 
-    file_path.write_text(json.dumps(submissions, indent=4))
-    _logger.info('Done fetching comments.')
+    file_path.write_text(json.dumps(submissions, indent=4), encoding='utf-8')
+    print('Done fetching comments.')
+
+
+if __name__ == '__main__':
+    main()
